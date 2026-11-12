@@ -99,3 +99,8 @@ output "semantic_governance_manifest" {
   description = "Compiled GEAP Semantic Governance (Natural Language Constraints) and Unified Access Policy (UAP) manifest for the Central Agent Gateway."
 }
 
+output "wiz_google_cloud_events_configuration" {
+  value       = module.wiz
+  description = "Wiz GCP Connector and Cloud Events configuration output."
+}
+
