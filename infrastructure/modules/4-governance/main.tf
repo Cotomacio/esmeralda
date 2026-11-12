@@ -95,7 +95,7 @@ module "wiz" {
   enable_shadow_data               = true
   forensic                         = true
   cloud_events                     = true
-  cloud_events_project_id          = "ai-governance-500520"
+  cloud_events_project_id          = var.governance_project_id # resolves to esm-dev-governance-11d4
 }
 
 
