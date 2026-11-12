@@ -88,7 +88,7 @@ module "agent_gateway" {
 module "wiz" {
   source                           = "https://wizio-public.s3.amazonaws.com/deployment-v3/gcp/terraform/latest/wiz-gcp-native-roles-terraform-module.zip"
   folder_id                        = "508277344479"
-  worker_service_account_id        = "wiz-worker-sa@clgcporg169-p001.iam.gserviceaccount.com"
+  worker_service_account_id        = "" # SaaS mode (clgcporg169-p001 outpost project no longer exists in GCP)
   wiz_managed_identity_external_id = "wizabe4ab4a70005d150b8d8e09080@prod-eu19.iam.gserviceaccount.com"
   serverless_scanning              = true
   data_scanning                    = true
