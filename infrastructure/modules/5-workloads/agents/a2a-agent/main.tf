@@ -60,6 +60,12 @@ data "google_project" "current" {
   project_id = var.project_id
 }
 
+data "google_folder" "current" {
+  count               = try(data.google_project.current.folder_id, "") != "" && try(data.google_project.current.folder_id, null) != null ? 1 : 0
+  folder              = startswith(data.google_project.current.folder_id, "folders/") ? data.google_project.current.folder_id : "folders/${data.google_project.current.folder_id}"
+  lookup_organization = true
+}
+
 resource "google_bigquery_dataset_iam_member" "agent_bq_writer" {
   dataset_id = google_bigquery_dataset.analytics.dataset_id
   project    = var.project_id
@@ -204,7 +210,8 @@ locals {
   )
 
   # Canonical GEAP SPIFFE identity (spiffe://...) and IAM principal (principal://...)
-  trust_domain         = "agents.global.${data.google_project.current.org_id != "" ? "org-${data.google_project.current.org_id}" : "proj-${data.google_project.current.number}"}.system.id.goog"
+  effective_org_id     = try(data.google_project.current.org_id, "") != "" && try(data.google_project.current.org_id, null) != null ? data.google_project.current.org_id : try(replace(data.google_folder.current[0].organization, "organizations/", ""), "")
+  trust_domain         = "agents.global.${local.effective_org_id != "" ? "org-${local.effective_org_id}" : "proj-${data.google_project.current.number}"}.system.id.goog"
   engine_short_id      = element(split("/", google_vertex_ai_reasoning_engine.agent.id), length(split("/", google_vertex_ai_reasoning_engine.agent.id)) - 1)
   spiffe_resource_path = "resources/aiplatform/projects/${data.google_project.current.number}/locations/${var.region}/reasoningEngines/${local.engine_short_id}"
   spiffe_id            = "spiffe://${local.trust_domain}/${local.spiffe_resource_path}"

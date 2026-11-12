@@ -4,8 +4,10 @@
 # ==============================================================================
 
 locals {
-  cx_agents_trust_domain     = "agents.global.${data.google_project.cx_agents.org_id != "" ? "org-${data.google_project.cx_agents.org_id}" : "proj-${data.google_project.cx_agents.number}"}.system.id.goog"
-  ai_coe_agents_trust_domain = "agents.global.${data.google_project.ai_coe_agents.org_id != "" ? "org-${data.google_project.ai_coe_agents.org_id}" : "proj-${data.google_project.ai_coe_agents.number}"}.system.id.goog"
+  cx_agents_org_id          = coalesce(var.org_id, data.google_project.cx_agents.org_id, "none")
+  ai_coe_agents_org_id      = coalesce(var.org_id, data.google_project.ai_coe_agents.org_id, "none")
+  cx_agents_trust_domain     = "agents.global.${local.cx_agents_org_id != "none" && local.cx_agents_org_id != "" ? "org-${local.cx_agents_org_id}" : "proj-${data.google_project.cx_agents.number}"}.system.id.goog"
+  ai_coe_agents_trust_domain = "agents.global.${local.ai_coe_agents_org_id != "none" && local.ai_coe_agents_org_id != "" ? "org-${local.ai_coe_agents_org_id}" : "proj-${data.google_project.ai_coe_agents.number}"}.system.id.goog"
 
   # CX mortgage orchestrator identity PrincipalSet URI format for Vertex AI Reasoning Engine
   cx_mortgage_orchestrator_identity_principal = "principalSet://${local.cx_agents_trust_domain}/attribute.platformContainer/aiplatform/projects/${data.google_project.cx_agents.number}"

@@ -56,12 +56,35 @@ resource "google_project_iam_member" "agent_gateway_dns_peer" {
   member  = "serviceAccount:service-${data.google_project.governance.number}@gcp-sa-agentgateway.iam.gserviceaccount.com"
 }
 
+resource "google_project_iam_member" "agent_gateway_dns_reader" {
+  count   = var.enable_agent_gateway && var.net_host_project_id != "" ? 1 : 0
+  project = var.net_host_project_id
+  role    = "roles/dns.reader"
+  member  = "serviceAccount:service-${data.google_project.governance.number}@gcp-sa-agentgateway.iam.gserviceaccount.com"
+}
+
 # Grant roles/compute.networkUser to Agent Gateway Service Agent on Shared VPC Host Project
 # (required when the network attachment references a Shared VPC subnet)
 resource "google_project_iam_member" "agent_gateway_network_user" {
   count   = var.enable_agent_gateway && var.net_host_project_id != "" ? 1 : 0
   project = var.net_host_project_id
   role    = "roles/compute.networkUser"
+  member  = "serviceAccount:service-${data.google_project.governance.number}@gcp-sa-agentgateway.iam.gserviceaccount.com"
+}
+
+# Grant roles/compute.networkAdmin on Governance Project so the Agent Gateway Service Agent can read/use
+# the PSC network attachment (compute.networkAttachments.get) in the governance project.
+resource "google_project_iam_member" "agent_gateway_gov_network_admin" {
+  count   = var.enable_agent_gateway ? 1 : 0
+  project = var.governance_project_id
+  role    = "roles/compute.networkAdmin"
+  member  = "serviceAccount:service-${data.google_project.governance.number}@gcp-sa-agentgateway.iam.gserviceaccount.com"
+}
+
+resource "google_project_iam_member" "agent_gateway_gov_certmanager_viewer" {
+  count   = var.enable_agent_gateway ? 1 : 0
+  project = var.governance_project_id
+  role    = "roles/certificatemanager.viewer"
   member  = "serviceAccount:service-${data.google_project.governance.number}@gcp-sa-agentgateway.iam.gserviceaccount.com"
 }
 
@@ -101,6 +124,8 @@ resource "google_network_services_agent_connectivity_template" "egress" {
   depends_on = [
     google_project_iam_member.agent_gateway_dns_peer,
     google_project_iam_member.agent_gateway_network_user,
+    google_project_iam_member.agent_gateway_gov_network_admin,
+    google_project_iam_member.agent_gateway_gov_certmanager_viewer,
   ]
 }
 
@@ -345,6 +370,16 @@ data "google_project" "agent_projects" {
   project_id = each.value
 }
 
+data "google_folder" "agent_project_folders" {
+  for_each = {
+    for proj_id, p in data.google_project.agent_projects :
+    proj_id => p.folder_id
+    if try(p.folder_id, "") != "" && try(p.folder_id, null) != null
+  }
+  folder              = startswith(each.value, "folders/") ? each.value : "folders/${each.value}"
+  lookup_organization = true
+}
+
 locals {
   # Members of the registry-root roles/iap.egressor binding, which grant_iap_egress.sh scopes to
   # system endpoint entries (Google APIs) with an IAM condition. IAP egress authorizes the
@@ -352,12 +387,20 @@ locals {
   # service accounts in var.agent_invoker_sa_emails are not on this list (they only read the CA
   # secret above). The Vertex AI / Agent Runtime service agents stay for platform-initiated
   # egress; with the condition they can only reach system endpoints.
+  agent_project_org_ids = {
+    for proj_id, p in data.google_project.agent_projects :
+    proj_id => (
+      try(p.org_id, "") != "" && try(p.org_id, null) != null ? p.org_id :
+      try(replace(data.google_folder.agent_project_folders[proj_id].organization, "organizations/", ""), "")
+    )
+  }
+
   dynamic_agent_members = flatten([
     for proj_id, p in data.google_project.agent_projects : [
       "serviceAccount:service-${p.number}@gcp-sa-aiplatform.iam.gserviceaccount.com",
       "serviceAccount:service-${p.number}@gcp-sa-aiplatform-re.iam.gserviceaccount.com",
-      "principalSet://agents.global.${p.org_id != "" ? "org-${p.org_id}" : "proj-${p.number}"}.system.id.goog/attribute.platformContainer/aiplatform/projects/${p.number}",
-      "principalSet://agents.global.${p.org_id != "" ? "org-${p.org_id}" : "proj-${p.number}"}.system.id.goog/attribute.container/projects/${p.number}"
+      "principalSet://agents.global.${local.agent_project_org_ids[proj_id] != "" ? "org-${local.agent_project_org_ids[proj_id]}" : "proj-${p.number}"}.system.id.goog/attribute.platformContainer/aiplatform/projects/${p.number}",
+      "principalSet://agents.global.${local.agent_project_org_ids[proj_id] != "" ? "org-${local.agent_project_org_ids[proj_id]}" : "proj-${p.number}"}.system.id.goog/attribute.container/projects/${p.number}"
     ]
   ])
 
