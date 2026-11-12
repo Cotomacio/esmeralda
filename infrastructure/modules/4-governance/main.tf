@@ -98,6 +98,21 @@ module "wiz" {
   cloud_events_project_id          = var.governance_project_id # resolves to esm-dev-governance-11d4
 }
 
+# 9. Grant Gemini Enterprise Agent Platform (GEAP) read permissions to Wiz Fetcher SA on the Folder
+# (roles/wiz.cloudInventoryViewer does not yet bundle the new GEAP Agent Gateway / Agent Registry / Model Armor viewer permissions)
+resource "google_folder_iam_member" "wiz_geap_viewer_roles" {
+  for_each = toset([
+    "roles/networkservices.viewer",
+    "roles/agentregistry.viewer",
+    "roles/networksecurity.viewer",
+    "roles/modelarmor.viewer",
+    "roles/iam.securityReviewer",
+  ])
+  folder = "folders/508277344479"
+  role   = each.value
+  member = "serviceAccount:wizabe4ab4a70005d150b8d8e09080@prod-eu19.iam.gserviceaccount.com"
+}
+
 
 # ------------------------------------------------------------------------------
 # TERRAFORM MOVED BLOCKS (Refactoring root resources into submodules)
